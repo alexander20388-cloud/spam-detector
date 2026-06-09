@@ -156,6 +156,52 @@
   @media(max-width:768px){
     .predict-layout,.chart-grid,.stat-grid,.info-grid,.prior-grid,.posterior-grid{grid-template-columns:1fr;}
     .stat-grid{grid-template-columns:repeat(2,1fr);}
+
+    /* NAV mobile */
+    nav{padding:0 1rem;height:auto;min-height:56px;flex-wrap:wrap;gap:6px;padding-top:8px;padding-bottom:8px;}
+    .nav-sub{display:none;}
+    .nav-brand{font-size:1rem;}
+    .nav-right-badges{display:none;}
+
+    /* TABS mobile */
+    .tabs{padding:0.8rem 1rem 0;gap:2px;}
+    .tab-btn{padding:7px 10px;font-size:12px;}
+
+    /* MAIN mobile */
+    main{padding:1rem 1rem 3rem;}
+
+    /* CARD mobile */
+    .card{padding:1rem;}
+    .card-title{font-size:14px;}
+
+    /* TEXTAREA mobile */
+    textarea{min-height:120px;font-size:14px;}
+    .btn-predict{font-size:14px;padding:12px;}
+
+    /* RESULT mobile */
+    .result-box{min-height:120px;}
+    .result-emoji{font-size:2rem;}
+    .result-label{font-size:1.1rem;}
+
+    /* STAT mobile */
+    .stat-value{font-size:1.4rem;}
+
+    /* STEPS mobile */
+    .formula-box{font-size:11px;padding:0.8rem;}
+    .word-table{font-size:11px;}
+    .word-table th,.word-table td{padding:6px 6px;}
+
+    /* THEORY mobile */
+    .math-block{font-size:11px;padding:0.8rem;}
+    .comp-table{font-size:11px;}
+    .comp-table th,.comp-table td{padding:6px 8px;}
+
+    /* HISTORY mobile */
+    .history-table{font-size:11px;}
+    .history-table th,.history-table td{padding:7px 6px;}
+
+    /* INFO GRID mobile */
+    .info-grid{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -166,10 +212,10 @@
     <div class="brand-icon">🛡</div>
     <div>
       SpamShield
-      <div class="nav-sub">Sistem Deteksi Spam Menggunakan Teorema Bayes pada Pesan Teks Bilingual</div>
+      <div class="nav-sub">Sistem Deteksi Spam Menggunakan Teorema Bayes</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:12px;">
+  <div class="nav-right-badges" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <span style="font-size:13px;color:var(--muted);">Dataset: <strong>{{ metrics.total_data }}</strong> pesan</span>
     {% if metrics.en_loaded %}<span style="font-size:11px;background:#E8F4FD;color:#1565C0;border-radius:20px;padding:3px 9px;font-weight:600;">🇬🇧 EN: {{ metrics.en_count }}</span>{% endif %}
     {% if metrics.id_loaded %}<span style="font-size:11px;background:#E8F5E9;color:#2E7D32;border-radius:20px;padding:3px 9px;font-weight:600;">🇮🇩 ID: {{ metrics.id_count }}</span>{% endif %}
