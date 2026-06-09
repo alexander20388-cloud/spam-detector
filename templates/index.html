@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpamShield — Sistem Deteksi Spam Berbasis Teorema Bayes</title>
+<style>
+  :root {
+    --spam:#FF6B6B; --ham:#00C9A7; --blue:#4F75FF;
+    --bg:#F7F8FC; --card:#FFFFFF; --border:#E8EAF0;
+    --text:#1a1d2e; --muted:#6B7280; --radius:12px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+  /* NAV */
+  nav{background:var(--card);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;}
+  .nav-brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.1rem;}
+  .brand-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--spam),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;}
+  .nav-sub{font-size:11px;color:var(--muted);font-weight:400;}
+  .nav-badge{font-size:11px;background:#EEF2FF;color:var(--blue);border-radius:20px;padding:3px 10px;font-weight:600;}
+
+  /* TABS */
+  .tabs{display:flex;gap:4px;padding:1.2rem 2rem 0;max-width:1150px;margin:0 auto;overflow-x:auto;}
+  .tab-btn{padding:9px 18px;border:none;background:none;border-bottom:2.5px solid transparent;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--muted);transition:all .2s;white-space:nowrap;}
+  .tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);}
+
+  /* MAIN */
+  main{max-width:1150px;margin:0 auto;padding:1.5rem 2rem 3rem;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* CARDS */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;}
+  .card-title{font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:8px;}
+
+  /* STAT GRID */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:1.5rem;}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem 1rem;text-align:center;}
+  .stat-value{font-size:1.8rem;font-weight:700;}
+  .stat-label{font-size:12px;color:var(--muted);margin-top:4px;}
+  .stat-card.acc .stat-value{color:var(--blue);}
+  .stat-card.prec .stat-value{color:var(--ham);}
+  .stat-card.rec .stat-value{color:#FFC107;}
+  .stat-card.f1 .stat-value{color:var(--spam);}
+
+  /* PREDICT FORM */
+  .predict-layout{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+  textarea{width:100%;min-height:150px;padding:1rem;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;resize:vertical;line-height:1.6;transition:border-color .2s;}
+  textarea:focus{outline:none;border-color:var(--blue);}
+  .btn-predict{width:100%;padding:13px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:10px;transition:all .2s;}
+  .btn-predict:hover{background:#3d5fcc;}
+  .btn-predict:disabled{opacity:.6;cursor:not-allowed;}
+
+  /* RESULT */
+  .result-box{border-radius:12px;padding:1.2rem;text-align:center;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--border);transition:all .3s;}
+  .result-box.spam{background:#FFF0F0;border-color:var(--spam);}
+  .result-box.ham{background:#F0FDF8;border-color:var(--ham);}
+  .result-emoji{font-size:2.5rem;margin-bottom:8px;}
+  .result-label{font-size:1.3rem;font-weight:700;}
+  .result-label.spam{color:var(--spam);}
+  .result-label.ham{color:var(--ham);}
+  .result-sub{font-size:13px;color:var(--muted);margin-top:4px;}
+
+  /* CONFIDENCE BAR */
+  .conf-wrap{width:100%;margin-top:14px;}
+  .conf-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .conf-row label{font-size:13px;width:70px;font-weight:500;}
+  .conf-track{flex:1;height:10px;background:#E8EAF0;border-radius:99px;overflow:hidden;}
+  .conf-fill{height:100%;border-radius:99px;transition:width .6s ease;}
+  .conf-fill.spam{background:var(--spam);}
+  .conf-fill.ham{background:var(--ham);}
+  .conf-pct{font-size:13px;font-weight:600;width:48px;text-align:right;}
+
+  /* SAMPLE CHIPS */
+  .sample-section{margin-top:1.2rem;}
+  .sample-title{font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:500;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{padding:5px 13px;border-radius:99px;font-size:12px;cursor:pointer;border:1px solid;font-weight:500;transition:all .15s;}
+  .chip:hover{opacity:.8;}
+  .chip.spam{background:#FFF0F0;border-color:var(--spam);color:var(--spam);}
+  .chip.ham{background:#F0FDF8;border-color:var(--ham);color:var(--ham);}
+
+  /* ── BAYES STEPS ─────────────────────────────────────────────────── */
+  .steps-panel{margin-top:1.5rem;}
+  .steps-panel .card-title{font-size:14px;color:var(--blue);}
+
+  /* Formula box */
+  .formula-box{background:#EEF2FF;border:1px solid #C7D4FF;border-radius:10px;padding:1rem 1.2rem;font-family:'Courier New',monospace;font-size:13.5px;line-height:2;margin-bottom:1rem;}
+  .formula-box .fml{color:#2a3fa8;font-weight:700;}
+  .formula-box .desc{color:var(--muted);font-size:12px;font-family:inherit;}
+
+  /* Prior block */
+  .prior-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem;}
+  .prior-item{background:var(--bg);border-radius:8px;padding:10px 12px;text-align:center;}
+  .prior-val{font-size:1.1rem;font-weight:700;color:var(--blue);}
+  .prior-lbl{font-size:11px;color:var(--muted);margin-top:3px;}
+
+  /* Word table */
+  .word-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1rem;}
+  .word-table th{background:var(--bg);padding:8px 10px;text-align:left;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);}
+  .word-table td{padding:8px 10px;border-bottom:1px solid var(--border);}
+  .word-tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;}
+  .word-tag.spam{background:#FFF0F0;color:var(--spam);}
+  .word-tag.ham{background:#F0FDF8;color:var(--ham);}
+
+  /* Posterior block */
+  .posterior-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .post-card{border-radius:10px;padding:1rem;text-align:center;}
+  .post-card.spam{background:#FFF0F0;border:1px solid #FFD0D0;}
+  .post-card.ham{background:#F0FDF8;border:1px solid #B2F0E3;}
+  .post-val{font-size:1.4rem;font-weight:700;}
+  .post-val.spam{color:var(--spam);}
+  .post-val.ham{color:var(--ham);}
+  .post-lbl{font-size:12px;color:var(--muted);margin-top:4px;}
+
+  /* CHARTS */
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;}
+  .chart-grid.single{grid-template-columns:1fr;}
+  .chart-img{width:100%;border-radius:8px;}
+  .chart-loading{text-align:center;padding:3rem;color:var(--muted);}
+
+  /* HISTORY */
+  .history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;}
+  .btn-export{padding:8px 18px;background:var(--ham);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-export:hover{background:#00a88a;}
+  .history-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .history-table th{background:var(--bg);padding:10px 12px;text-align:left;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);}
+  .history-table td{padding:10px 12px;border-bottom:1px solid var(--border);}
+  .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;text-transform:uppercase;}
+  .badge.spam{background:#FFF0F0;color:var(--spam);}
+  .badge.ham{background:#F0FDF8;color:var(--ham);}
+  .empty-state{text-align:center;padding:3rem;color:var(--muted);}
+
+  /* ABOUT */
+  .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-bottom:1.5rem;}
+  .info-item{padding:1.1rem;background:var(--bg);border-radius:10px;}
+  .info-item h4{font-size:14px;font-weight:600;margin-bottom:7px;}
+  .info-item p{font-size:13px;color:var(--muted);line-height:1.6;}
+
+  /* CARA KERJA TAB */
+  .theory-section{margin-bottom:2rem;}
+  .theory-section h3{font-size:15px;font-weight:700;margin-bottom:.8rem;color:var(--blue);}
+  .theory-section p{font-size:13.5px;color:var(--muted);line-height:1.8;margin-bottom:.7rem;}
+  .math-block{background:#F7F8FF;border-left:4px solid var(--blue);border-radius:0 8px 8px 0;padding:1rem 1.2rem;font-family:'Courier New',monospace;font-size:14px;line-height:2;margin:1rem 0;color:#2a3fa8;}
+  .step-list{counter-reset:step;list-style:none;padding:0;}
+  .step-list li{counter-increment:step;display:flex;gap:14px;margin-bottom:1rem;align-items:flex-start;}
+  .step-list li::before{content:counter(step);background:var(--blue);color:white;border-radius:50%;min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px;}
+  .step-list li p{font-size:13.5px;color:var(--muted);line-height:1.7;}
+  .step-list li strong{color:var(--text);}
+  .comp-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:.8rem;}
+  .comp-table th{background:#EEF2FF;padding:9px 12px;text-align:left;font-weight:600;border-bottom:2px solid #C7D4FF;color:var(--blue);}
+  .comp-table td{padding:9px 12px;border-bottom:1px solid var(--border);}
+  .comp-table tr:nth-child(even) td{background:var(--bg);}
+
+  @media(max-width:768px){
+    .predict-layout,.chart-grid,.stat-grid,.info-grid,.prior-grid,.posterior-grid{grid-template-columns:1fr;}
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="brand-icon">🛡</div>
+    <div>
+      SpamShield
+      <div class="nav-sub">Sistem Deteksi Spam Menggunakan Teorema Bayes pada Pesan Teks Bilingual</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:13px;color:var(--muted);">Dataset: <strong>{{ metrics.total_data }}</strong> pesan</span>
+    {% if metrics.en_loaded %}<span style="font-size:11px;background:#E8F4FD;color:#1565C0;border-radius:20px;padding:3px 9px;font-weight:600;">🇬🇧 EN: {{ metrics.en_count }}</span>{% endif %}
+    {% if metrics.id_loaded %}<span style="font-size:11px;background:#E8F5E9;color:#2E7D32;border-radius:20px;padding:3px 9px;font-weight:600;">🇮🇩 ID: {{ metrics.id_count }}</span>{% endif %}
+    {% if metrics.using_fallback %}<span style="font-size:11px;background:#FFF3E0;color:#E65100;border-radius:20px;padding:3px 9px;font-weight:600;">⚠️ Data Bawaan</span>{% endif %}
+    <span class="nav-badge">Teorema Bayes · TF-IDF</span>
+  </div>
+</nav>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn active"  onclick="switchTab('detect',this)">🔍 Deteksi Spam</button>
+  <button class="tab-btn"        onclick="switchTab('bayes',this)">🧮 Cara Kerja Bayes</button>
+  <button class="tab-btn"        onclick="switchTab('metrics',this)">📊 Performa Model</button>
+  <button class="tab-btn"        onclick="switchTab('visual',this)">📈 Visualisasi</button>
+  <button class="tab-btn"        onclick="switchTab('history',this)">🕑 Riwayat</button>
+  <button class="tab-btn"        onclick="switchTab('about',this)">ℹ️ Tentang</button>
+</div>
+
+<main>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- TAB: DETEKSI                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-detect" class="tab-panel active">
+  <div class="stat-grid" style="margin-top:1rem;">
+    <div class="stat-card acc"><div class="stat-value">{{ metrics.accuracy }}%</div><div class="stat-label">Akurasi</div></div>
+    <div class="stat-card prec"><div class="stat-value">{{ metrics.precision }}%</div><div class="stat-label">Presisi</div></div>
+    <div class="stat-card rec"><div class="stat-value">{{ metrics.recall }}%</div><div class="stat-label">Recall</div></div>
+    <div class="stat-card f1"><div class="stat-value">{{ metrics.f1 }}%</div><div class="stat-label">F1-Score</div></div>
+  </div>
+
+  <div class="predict-layout">
+    <!-- Input -->
+    <div class="card">
+      <div class="card-title">✉️ Masukkan Teks</div>
+      <textarea id="input-text" placeholder="Ketik atau paste pesan di sini (Bahasa Indonesia atau Inggris)..."></textarea>
+      <button class="btn-predict" onclick="predict()">🔍 Analisis dengan Teorema Bayes</button>
+      <div class="sample-section">
+        <div class="sample-title">Coba contoh teks:</div>
+        <div class="chips">
+          <span class="chip spam" onclick="setSample('Selamat! Anda memenangkan hadiah Rp 50 juta! Klik link ini sekarang!')">🇮🇩 Spam</span>
+          <span class="chip ham"  onclick="setSample('Besok ada rapat jam 9 pagi, jangan lupa hadir ya.')">🇮🇩 Normal</span>
+          <span class="chip spam" onclick="setSample('Congratulations! You won $1,000,000! Claim your prize now!')">🇬🇧 Spam</span>
+          <span class="chip ham"  onclick="setSample('Hey, are you free this weekend? Let\'s grab coffee.')">🇬🇧 Normal</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center;">
+      <div class="card-title">🎯 Hasil Analisis</div>
+      <div class="result-box" id="result-box">
+        <div style="color:var(--muted);font-size:14px;">Hasil prediksi akan muncul di sini</div>
+      </div>
+      <div class="conf-wrap" id="conf-wrap" style="display:none;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--muted);">POSTERIOR PROBABILITY — P(Kelas | Pesan)</div>
+        <div class="conf-row">
+          <label style="color:var(--spam);">🚫 Spam</label>
+          <div class="conf-track"><div class="conf-fill spam" id="bar-spam" style="width:0%"></div></div>
+          <span class="conf-pct" id="pct-spam" style="color:var(--spam);">0%</span>
+        </div>
+        <div class="conf-row">
+          <label style="color:var(--ham);">✅ Normal</label>
+          <div class="conf-track"><div class="conf-fill ham" id="bar-ham" style="width:0%"></div></div>
+          <span class="conf-pct" id="pct-ham" style="color:var(--ham);">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bayes Steps (muncul setelah prediksi) -->
+  <div id="steps-container" style="display:none;" class="steps-panel">
+    <div class="card">
+      <div class="card-title">🧮 Perhitungan Teorema Bayes — Step by Step</div>
+
+      <!-- Rumus -->
+      <div class="formula-box">
+        <div class="fml">P(Spam | Pesan) = P(Pesan | Spam) × P(Spam) / P(Pesan)</div>
+        <div class="desc">► P(Spam|Pesan) = Probabilitas posterior &nbsp;|&nbsp; P(Spam) = Prior &nbsp;|&nbsp; P(Pesan|Spam) = Likelihood</div>
+      </div>
+
+      <!-- Step 1: Prior -->
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text);">Step 1 — Prior Probability P(Kelas)</div>
+      <div class="prior-grid" id="prior-grid"></div>
+
+      <!-- Step 2: Likelihood per kata -->
+      <div style="font-size:13px;font-weight:600;margin:1rem 0 8px;color:var(--text);">Step 2 — Likelihood P(Kata | Kelas) — kata-kata yang ditemukan</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Nilai log-probability dari model TF-IDF Naive Bayes. Semakin tinggi nilainya, semakin kuat kata tersebut menandakan kelas tersebut.</div>
+      <table class="word-table" id="word-table">
+        <thead><tr>
+          <th>Kata</th>
+          <th>log P(kata|Spam)</th>
+          <th>log P(kata|Ham)</th>
+          <th>Favors</th>
+        </tr></thead>
+        <tbody id="word-tbody"></tbody>
+      </table>
+
+      <!-- Step 3: Posterior -->
+      <div style="font-size:13px;font-weight:600;margin:1rem 0 8px;color:var(--text);">Step 3 — Posterior Probability (setelah normalisasi)</div>
+      <div class="posterior-grid" id="posterior-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- TAB: CARA KERJA BAYES                                             -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-bayes" class="tab-panel">
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">🧮 Cara Kerja Teorema Bayes untuk Deteksi Spam</div>
+
+    <div class="theory-section">
+      <h3>1. Apa itu Teorema Bayes?</h3>
+      <p>Teorema Bayes adalah fondasi matematika untuk memperbarui keyakinan (probabilitas) berdasarkan bukti baru. Diformulasikan oleh <strong>Thomas Bayes</strong> (1763), teorema ini menyatakan:</p>
+      <div class="math-block">
+        P(A | B) = P(B | A) × P(A) / P(B)
+      </div>
+      <p>Di mana setiap komponen memiliki makna spesifik dalam konteks deteksi spam:</p>
+      <table class="comp-table">
+        <thead><tr><th>Notasi</th><th>Nama</th><th>Arti dalam Deteksi Spam</th></tr></thead>
+        <tbody>
+          <tr><td><code>P(A|B)</code></td><td>Posterior</td><td>Probabilitas pesan adalah spam, <em>setelah</em> melihat isi pesannya</td></tr>
+          <tr><td><code>P(B|A)</code></td><td>Likelihood</td><td>Seberapa sering kata-kata ini muncul di pesan spam</td></tr>
+          <tr><td><code>P(A)</code></td><td>Prior</td><td>Proporsi spam di dataset — sebelum melihat isi pesan</td></tr>
+          <tr><td><code>P(B)</code></td><td>Evidence</td><td>Probabilitas kemunculan kata-kata tersebut secara umum</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="theory-section">
+      <h3>2. Penerapan ke Teks: Naive Bayes Classifier</h3>
+      <p>Untuk pesan berisi kata-kata w₁, w₂, ..., wₙ, kita ingin menghitung:</p>
+      <div class="math-block">
+        P(Spam | w₁, w₂, ..., wₙ) ∝ P(Spam) × P(w₁|Spam) × P(w₂|Spam) × ... × P(wₙ|Spam)
+      </div>
+      <p>Kata <strong>"Naive"</strong> merujuk pada asumsi bahwa setiap kata bersifat <em>independen</em> satu sama lain. Meskipun asumsi ini tidak 100% realistis (kata "hadiah" dan "klaim" sering muncul bersama), pendekatan ini terbukti sangat efektif dan efisien dalam praktik.</p>
+      <p>Untuk menghindari underflow numerik (perkalian banyak angka kecil), perhitungan dilakukan dalam skala logaritmik:</p>
+      <div class="math-block">
+        log P(Spam|pesan) = log P(Spam) + Σ log P(wᵢ | Spam)
+      </div>
+    </div>
+
+    <div class="theory-section">
+      <h3>3. Proses Lengkap — 5 Langkah</h3>
+      <ol class="step-list">
+        <li><p><strong>Preprocessing</strong> — teks dinormalisasi: huruf kecil semua, URL diganti token <code>url</code>, angka diganti <code>angka</code>, tanda baca dihapus.</p></li>
+        <li><p><strong>TF-IDF Vectorization</strong> — setiap kata dikonversi menjadi bobot numerik. TF-IDF memberi nilai tinggi untuk kata yang sering muncul di dokumen ini tapi jarang di seluruh dataset — mengurangi pengaruh kata umum seperti "dan", "yang", "the".</p></li>
+        <li><p><strong>Hitung Prior P(Kelas)</strong> — berapa proporsi spam dan ham di data training. Jika 50% spam: P(Spam) = 0.5, P(Ham) = 0.5.</p></li>
+        <li><p><strong>Hitung Likelihood P(Kata|Kelas)</strong> — untuk setiap kata di pesan, hitung seberapa sering kata tersebut muncul di pesan spam vs ham. Gunakan Laplace smoothing (α=0.5) agar kata baru tidak menghasilkan probabilitas nol.</p></li>
+        <li><p><strong>Hitung Posterior & Normalisasi</strong> — gabungkan prior dan likelihood, bandingkan P(Spam|pesan) vs P(Ham|pesan). Kelas dengan nilai tertinggi adalah prediksi. Normalisasi menghasilkan confidence score (0–100%).</p></li>
+      </ol>
+    </div>
+
+    <div class="theory-section">
+      <h3>4. Contoh Perhitungan Manual</h3>
+      <p>Misalkan pesan: <em>"Klik sekarang menang hadiah"</em></p>
+      <div class="math-block">
+Prior:
+  P(Spam) = 40/80 = 0.500
+  P(Ham)  = 40/80 = 0.500
+
+Likelihood (log):
+  log P("klik"   | Spam) = -3.21  vs  log P("klik"   | Ham) = -5.89
+  log P("menang" | Spam) = -3.45  vs  log P("menang"  | Ham) = -6.12
+  log P("hadiah" | Spam) = -2.98  vs  log P("hadiah"  | Ham) = -6.45
+
+Log-posterior (tidak ternormalisasi):
+  Spam: log(0.5) + (-3.21) + (-3.45) + (-2.98) = -10.33
+  Ham:  log(0.5) + (-5.89) + (-6.12) + (-6.45) = -19.15
+
+Normalisasi → P(Spam|pesan) ≈ 0.9998 → SPAM ✓
+      </div>
+    </div>
+
+    <div style="background:#F0FDF8;border:1px solid #B2F0E3;border-radius:10px;padding:1.2rem;margin-top:.5rem;">
+      <strong style="color:var(--ham);">💡 Coba sendiri!</strong>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px;line-height:1.7;">Pergi ke tab <strong>Deteksi Spam</strong>, masukkan pesan apapun, lalu lihat bagian <em>"Perhitungan Teorema Bayes — Step by Step"</em> yang muncul setelah prediksi. Kamu bisa melihat langsung nilai prior, likelihood tiap kata, dan posterior dari pesan yang kamu masukkan.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- TAB: METRICS                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-metrics" class="tab-panel">
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">📊 Evaluasi Model</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+      <div>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead><tr style="background:#F7F8FC;">
+            <th style="padding:10px;text-align:left;border-bottom:2px solid var(--border);">Metrik</th>
+            <th style="padding:10px;text-align:center;border-bottom:2px solid var(--border);">Nilai</th>
+            <th style="padding:10px;text-align:left;border-bottom:2px solid var(--border);">Keterangan</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="padding:10px;border-bottom:1px solid var(--border);font-weight:600;">Accuracy</td>
+                <td style="padding:10px;text-align:center;border-bottom:1px solid var(--border);color:var(--blue);font-weight:700;">{{ metrics.accuracy }}%</td>
+                <td style="padding:10px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;">Persentase prediksi benar dari total data</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid var(--border);font-weight:600;">Precision</td>
+                <td style="padding:10px;text-align:center;border-bottom:1px solid var(--border);color:var(--ham);font-weight:700;">{{ metrics.precision }}%</td>
+                <td style="padding:10px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;">Dari yang diprediksi spam, berapa % yang benar spam</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid var(--border);font-weight:600;">Recall</td>
+                <td style="padding:10px;text-align:center;border-bottom:1px solid var(--border);color:#FFC107;font-weight:700;">{{ metrics.recall }}%</td>
+                <td style="padding:10px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;">Dari semua spam, berapa % yang berhasil terdeteksi</td></tr>
+            <tr><td style="padding:10px;font-weight:600;">F1-Score</td>
+                <td style="padding:10px;text-align:center;color:var(--spam);font-weight:700;">{{ metrics.f1 }}%</td>
+                <td style="padding:10px;color:var(--muted);font-size:12px;">Harmonic mean dari Precision dan Recall</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Info Dataset</div>
+        <div style="display:grid;gap:10px;">
+          <div style="background:#F7F8FC;border-radius:8px;padding:12px;display:flex;justify-content:space-between;"><span style="font-size:13px;color:var(--muted);">Total Data</span><strong>{{ metrics.total_data }} pesan</strong></div>
+          <div style="background:#F7F8FC;border-radius:8px;padding:12px;display:flex;justify-content:space-between;"><span style="font-size:13px;color:var(--muted);">Data Training (80%)</span><strong>{{ metrics.train_size }} pesan</strong></div>
+          <div style="background:#F7F8FC;border-radius:8px;padding:12px;display:flex;justify-content:space-between;"><span style="font-size:13px;color:var(--muted);">Data Testing (20%)</span><strong>{{ metrics.test_size }} pesan</strong></div>
+          <div style="background:#FFF0F0;border-radius:8px;padding:12px;display:flex;justify-content:space-between;"><span style="font-size:13px;color:var(--spam);">🚫 Data Spam</span><strong style="color:var(--spam);">{{ metrics.spam_count }} pesan</strong></div>
+          <div style="background:#F0FDF8;border-radius:8px;padding:12px;display:flex;justify-content:space-between;"><span style="font-size:13px;color:var(--ham);">✅ Data Normal (Ham)</span><strong style="color:var(--ham);">{{ metrics.ham_count }} pesan</strong></div>
+          <!-- Sumber dataset -->
+          <div style="background:#E8F4FD;border-radius:8px;padding:12px;">
+            <div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:6px;">📂 Sumber Dataset</div>
+            {% if metrics.en_loaded %}
+            <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">🇬🇧 <strong>SMS Spam Collection</strong> (UCI) — {{ metrics.en_count }} pesan Bahasa Inggris</div>
+            {% else %}
+            <div style="font-size:12px;color:#E65100;">⚠️ SMSSpamCollection belum ditemukan — taruh di folder spam_detector/</div>
+            {% endif %}
+            {% if metrics.id_loaded %}
+            <div style="font-size:12px;color:var(--muted);">🇮🇩 <strong>Indonesian SMS Spam</strong> (Kaggle) — {{ metrics.id_count }} pesan Bahasa Indonesia</div>
+            {% else %}
+            <div style="font-size:12px;color:#E65100;">⚠️ spam_indonesia.csv belum ditemukan — taruh di folder spam_detector/</div>
+            {% endif %}
+            {% if metrics.using_fallback %}
+            <div style="font-size:12px;color:#E65100;margin-top:4px;">⚠️ Menggunakan data bawaan (40 pesan). Tambahkan dataset eksternal untuk hasil lebih akurat.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- TAB: VISUALISASI                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-visual" class="tab-panel">
+  <div id="charts-container"><div class="chart-loading">⏳ Memuat grafik...</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- TAB: RIWAYAT                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-history" class="tab-panel">
+  <div class="card" style="margin-top:1rem;">
+    <div class="history-header">
+      <div class="card-title" style="margin:0;">🕑 Riwayat Prediksi</div>
+      <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+    <div id="history-content">
+      <div class="empty-state">Belum ada riwayat prediksi.<br>Coba analisis beberapa pesan terlebih dahulu.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- TAB: TENTANG                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-about" class="tab-panel">
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">ℹ️ Tentang SpamShield</div>
+    <div class="info-grid">
+      <div class="info-item"><h4>📐 Teorema Bayes</h4><p>Klasifikasi didasarkan sepenuhnya pada <strong>Teorema Bayes</strong>: P(Spam|Pesan) = P(Pesan|Spam) × P(Spam) / P(Pesan). Model menghitung probabilitas posterior untuk setiap kelas.</p></div>
+      <div class="info-item"><h4>📝 Ekstraksi Fitur</h4><p>Teks dikonversi ke vektor numerik menggunakan <strong>TF-IDF dengan bigram</strong>, memberi bobot lebih pada kata unik yang membedakan spam dari ham.</p></div>
+      <div class="info-item"><h4>🌐 Bilingual</h4><p>Dataset mencakup <strong>Bahasa Indonesia dan Inggris</strong> — masing-masing 40 spam + 40 ham, total 80 pesan pelatihan.</p></div>
+      <div class="info-item"><h4>🔄 Preprocessing</h4><p>Lowercasing → normalisasi URL → normalisasi angka → hapus tanda baca → tokenisasi TF-IDF.</p></div>
+      <div class="info-item"><h4>📊 Evaluasi</h4><p>Accuracy, Precision, Recall, F1-Score, dan Confusion Matrix. Pembagian data <strong>80% training / 20% testing</strong> dengan stratified split.</p></div>
+      <div class="info-item"><h4>⚙️ Tech Stack</h4><p><strong>Python · Flask · scikit-learn · pandas · matplotlib · seaborn</strong></p></div>
+    </div>
+    <div style="background:#EEF2FF;border-radius:10px;padding:1.2rem;">
+      <strong style="color:var(--blue);">📚 Judul Proyek</strong>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:8px;line-height:1.7;font-style:italic;">
+        "Sistem Deteksi Spam Menggunakan Teorema Bayes pada Pesan Teks Bilingual"
+      </p>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+let chartsLoaded = false;
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'visual' && !chartsLoaded) loadCharts();
+  if (name === 'history') loadHistory();
+}
+
+function setSample(text) { document.getElementById('input-text').value = text; }
+
+async function predict() {
+  const text = document.getElementById('input-text').value.trim();
+  if (!text) { alert('Masukkan teks terlebih dahulu!'); return; }
+  const btn = document.querySelector('.btn-predict');
+  btn.disabled = true; btn.textContent = '⏳ Menghitung Teorema Bayes...';
+
+  try {
+    const res = await fetch('/predict', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const data = await res.json();
+    const isSpam = data.prediction === 'spam';
+
+    // Result box
+    const box = document.getElementById('result-box');
+    box.className = 'result-box ' + data.prediction;
+    box.innerHTML = `
+      <div class="result-emoji">${isSpam ? '🚫' : '✅'}</div>
+      <div class="result-label ${data.prediction}">${isSpam ? 'SPAM TERDETEKSI' : 'PESAN NORMAL'}</div>
+      <div class="result-sub">${isSpam ? 'Pesan ini terindikasi spam' : 'Pesan ini terlihat aman'}</div>`;
+
+    // Confidence bars
+    document.getElementById('conf-wrap').style.display = 'block';
+    setTimeout(() => {
+      document.getElementById('bar-spam').style.width = data.confidence_spam + '%';
+      document.getElementById('bar-ham').style.width  = data.confidence_ham  + '%';
+      document.getElementById('pct-spam').textContent  = data.confidence_spam + '%';
+      document.getElementById('pct-ham').textContent   = data.confidence_ham  + '%';
+    }, 50);
+
+    // Bayes steps
+    renderSteps(data.bayes_steps);
+
+  } catch(e) { alert('Terjadi kesalahan. Pastikan server berjalan.'); }
+  finally { btn.disabled = false; btn.textContent = '🔍 Analisis dengan Teorema Bayes'; }
+}
+
+function renderSteps(s) {
+  if (!s) return;
+  document.getElementById('steps-container').style.display = 'block';
+
+  // Prior
+  const pr = s.prior;
+  document.getElementById('prior-grid').innerHTML = `
+    <div class="prior-item"><div class="prior-val">${pr.total}</div><div class="prior-lbl">Total Dataset</div></div>
+    <div class="prior-item" style="background:#FFF0F0;"><div class="prior-val" style="color:var(--spam);">${pr.p_spam}</div><div class="prior-lbl">P(Spam) = ${pr.n_spam}/${pr.total}</div></div>
+    <div class="prior-item" style="background:#F0FDF8;"><div class="prior-val" style="color:var(--ham);">${pr.p_ham}</div><div class="prior-lbl">P(Ham) = ${pr.n_ham}/${pr.total}</div></div>`;
+
+  // Word table
+  const tbody = document.getElementById('word-tbody');
+  tbody.innerHTML = s.words.length ? s.words.map(w => `
+    <tr>
+      <td><code style="background:#F7F8FC;padding:2px 7px;border-radius:4px;">${w.word}</code></td>
+      <td style="color:var(--spam);font-family:monospace;">${w.log_spam}</td>
+      <td style="color:var(--ham);font-family:monospace;">${w.log_ham}</td>
+      <td><span class="word-tag ${w.favors}">${w.favors === 'spam' ? '🚫 Spam' : '✅ Ham'}</span></td>
+    </tr>`).join('')
+    : '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:1rem;">Tidak ada kata yang dikenali dalam vocabulary model</td></tr>';
+
+  // Posterior
+  const po = s.posterior;
+  document.getElementById('posterior-grid').innerHTML = `
+    <div class="post-card spam">
+      <div class="post-val spam">${(po.p_spam * 100).toFixed(2)}%</div>
+      <div class="post-lbl">P(Spam | Pesan)</div>
+    </div>
+    <div class="post-card ham">
+      <div class="post-val ham">${(po.p_ham * 100).toFixed(2)}%</div>
+      <div class="post-lbl">P(Ham | Pesan)</div>
+    </div>`;
+
+  // Scroll ke steps
+  setTimeout(() => document.getElementById('steps-container').scrollIntoView({behavior:'smooth', block:'start'}), 100);
+}
+
+async function loadCharts() {
+  const container = document.getElementById('charts-container');
+  container.innerHTML = '<div class="chart-loading">⏳ Memuat grafik, harap tunggu...</div>';
+  try {
+    const res = await fetch('/charts');
+    const data = await res.json();
+    chartsLoaded = true;
+    container.innerHTML = `
+      <div class="chart-grid" style="margin-top:1rem;">
+        <div class="card"><div class="card-title">📉 Confusion Matrix</div><img class="chart-img" src="data:image/png;base64,${data.confusion_matrix}"></div>
+        <div class="card"><div class="card-title">📊 Metrik Performa</div><img class="chart-img" src="data:image/png;base64,${data.metrics_chart}"></div>
+      </div>
+      <div class="chart-grid">
+        <div class="card"><div class="card-title">🔴 Kata Sering di Spam</div><img class="chart-img" src="data:image/png;base64,${data.wordcloud_spam}"></div>
+        <div class="card"><div class="card-title">🟢 Kata Sering di Pesan Normal</div><img class="chart-img" src="data:image/png;base64,${data.wordcloud_ham}"></div>
+      </div>
+      <div class="chart-grid single">
+        <div class="card"><div class="card-title">🥧 Distribusi Dataset</div><img class="chart-img" src="data:image/png;base64,${data.dataset_pie}" style="max-width:400px;display:block;margin:0 auto;"></div>
+      </div>`;
+  } catch(e) {
+    container.innerHTML = '<div class="chart-loading">❌ Gagal memuat grafik.</div>';
+  }
+}
+
+async function loadHistory() {
+  const res = await fetch('/history');
+  const data = await res.json();
+  const el = document.getElementById('history-content');
+  if (!data.length) {
+    el.innerHTML = '<div class="empty-state">Belum ada riwayat prediksi.</div>';
+    return;
+  }
+  const rows = data.slice().reverse().map(r => `
+    <tr>
+      <td style="color:var(--muted);font-size:12px;">${r.timestamp}</td>
+      <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.text}</td>
+      <td><span class="badge ${r.prediction}">${r.prediction}</span></td>
+      <td style="color:var(--spam);font-weight:600;">${r.confidence_spam}%</td>
+      <td style="color:var(--ham);font-weight:600;">${r.confidence_ham}%</td>
+    </tr>`).join('');
+  el.innerHTML = `
+    <table class="history-table">
+      <thead><tr><th>Waktu</th><th>Teks</th><th>Prediksi</th><th>P(Spam)</th><th>P(Ham)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function exportCSV() { window.location.href = '/export'; }
+
+document.getElementById('input-text').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') predict();
+});
+</script>
+</body>
+</html>
