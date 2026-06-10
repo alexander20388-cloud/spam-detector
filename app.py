@@ -113,20 +113,13 @@ def load_datasets():
     id_path = os.path.join(os.path.dirname(__file__), ID_DATASET_FILE)
     if os.path.exists(id_path):
         try:
+            # File spam_indonesia.csv sudah dalam format bersih: label,text
             df_id = pd.read_csv(id_path, encoding='utf-8')
-            # Normalisasi nama kolom (beberapa versi punya nama berbeda)
             df_id.columns = df_id.columns.str.strip().str.lower()
-            if 'label' not in df_id.columns:
-                # Cari kolom yang mungkin berisi label
-                for col in df_id.columns:
-                    if df_id[col].str.lower().isin(['spam','ham']).mean() > 0.5:
-                        df_id = df_id.rename(columns={col: 'label'})
-                        break
-            if 'text' not in df_id.columns:
-                text_col = [c for c in df_id.columns if c != 'label'][0]
-                df_id = df_id.rename(columns={text_col: 'text'})
+            if 'label' not in df_id.columns or 'text' not in df_id.columns:
+                df_id.columns = ['label', 'text']
             df_id = df_id[['text', 'label']].dropna()
-            df_id['label'] = df_id['label'].str.strip().str.lower()
+            df_id['label'] = df_id['label'].astype(str).str.strip().str.lower()
             df_id = df_id[df_id['label'].isin(['spam', 'ham'])]
             frames.append(df_id)
             dataset_info["id_loaded"] = True
@@ -407,5 +400,4 @@ def history():
     return jsonify(prediction_history[-20:])
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True, port=5000)
